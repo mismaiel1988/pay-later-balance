@@ -3,11 +3,14 @@ services:
     name: pay-later-balance
     env: node
     plan: free
-    buildCommand: "npm install"
-    startCommand: "npm start"
+    branch: main
+    rootDir: .
+    buildCommand: |
+      cd $RENDER_PROJECT_ROOT
+      npm install
+    startCommand: |
+      cd $RENDER_PROJECT_ROOT
+      npm start
     envVars:
       - key: SHOPIFY_ADMIN_API_TOKEN
         sync: false
-    autoDeploy: true
-    branch: main
-    rootDir: .
