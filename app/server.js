@@ -1,5 +1,5 @@
-const express = require("express");
-const fetch = require("node-fetch");
+import express from "express";
+import fetch from "node-fetch";
 
 const app = express();
 const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;
@@ -58,4 +58,4 @@ app.get("/pay-balance", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Pay Balance proxy running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Pay Balance proxy running on port ${PORT}`));
