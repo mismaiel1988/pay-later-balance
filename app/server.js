@@ -57,5 +57,58 @@ app.get("/pay-balance", async (req, res) => {
   }
 });
 
+
+// ✅ Inject custom frontend script for hiding "Buy Again" and adding "Pay Remaining Balance"
+app.get("/inject-script.js", (req, res) => {
+  res.type("application/javascript").send(`
+    document.addEventListener("DOMContentLoaded", () => {
+      const observer = new MutationObserver(() => {
+        const orderId = document.querySelector("[data-order-id]")?.dataset.orderId;
+        const paymentInfo = document.body.textContent.toLowerCase();
+        const buyAgainBtn = [...document.querySelectorAll("button, a")]
+          .find(btn => btn.textContent.trim() === "Buy again");
+
+        const isWholesaleInvoice =
+          paymentInfo.includes("net 30") ||
+          paymentInfo.includes("invoice") ||
+          paymentInfo.includes("pending payment");
+
+        if (isWholesaleInvoice && buyAgainBtn) {
+          buyAgainBtn.style.display = "none";
+
+          const payBtn = document.createElement("a");
+          payBtn.href = \`/apps/pay-balance?order_id=\${orderId}\`;
+          payBtn.textContent = "Pay Remaining Balance";
+          payBtn.className = "pay-balance-link";
+          payBtn.style = \`
+            display:inline-block;
+            background-color:#0A213E;
+            color:#fff;
+            padding:10px 20px;
+            border-radius:6px;
+            text-decoration:none;
+            font-weight:600;
+            transition:all 0.2s ease-in-out;
+          \`;
+          payBtn.onmouseover = () => (payBtn.style.backgroundColor = "#000");
+          payBtn.onmouseout = () => (payBtn.style.backgroundColor = "#0A213E");
+
+          const targetContainer =
+            document.querySelector("[data-order-id]") ||
+            document.querySelector(".order-summary") ||
+            document.querySelector("main");
+
+          if (targetContainer && !document.querySelector(".pay-balance-link")) {
+            targetContainer.appendChild(payBtn);
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  `);
+});
+
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Pay Balance proxy running on port ${PORT}`));
