@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: pay-later-balance
+    env: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    envVars:
+      - key: SHOPIFY_ADMIN_API_TOKEN
+        sync: false
+    autoDeploy: true
+    branch: main
+    rootDir: .
