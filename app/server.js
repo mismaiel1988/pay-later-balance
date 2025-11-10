@@ -37,20 +37,42 @@ app.get("/pay-balance", async (req, res) => {
     const order = data.order;
     if (!order) return res.status(404).send("Order not found.");
 
-    const canceled = !!order.cancelled_at;
-    const fullyPaid =
-      order.financial_status === "paid" ||
-      (order.total_due ?? 0) <= 0;
+  const canceled = !!order.cancelled_at;
+const isPending =
+  ["pending", "partially_paid"].includes(order.financial_status);
 
-    if (canceled || fullyPaid) {
-      return res.send(`
-        <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
-          <h2>Order ${order.name}</h2>
-          <p>This order is fully paid or canceled — no balance due.</p>
-          <a href="/account" style="border:1px solid #111;padding:8px 14px;border-radius:8px;text-decoration:none;color:#111">Back to Orders</a>
-        </body></html>
-      `);
-    }
+if (canceled) {
+  return res.send(`
+    <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
+      <h2>Order ${order.name}</h2>
+      <p>This order has been canceled — no balance due.</p>
+      <a href="/account" style="border:1px solid #111;padding:8px 14px;border-radius:8px;text-decoration:none;color:#111">Back to Orders</a>
+    </body></html>
+  `);
+}
+
+if (isPending) {
+  const due =
+    Number(order.total_due ?? order.total_price - (order.total_paid_amount || 0)).toFixed(2);
+  const invoiceUrl = order.invoice_url || order.order_status_url;
+
+  return res.send(`
+    <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
+      <h2>Pay Remaining Balance for ${order.name}</h2>
+      <p>Outstanding: $${due}</p>
+      <a href="${invoiceUrl}" style="background:#0A213E;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px;">Pay in Full</a>
+    </body></html>
+  `);
+}
+
+// default (fully paid)
+return res.send(`
+  <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
+    <h2>Order ${order.name}</h2>
+    <p>This order is fully paid — no balance due.</p>
+    <a href="/account" style="border:1px solid #111;padding:8px 14px;border-radius:8px;text-decoration:none;color:#111">Back to Orders</a>
+  </body></html>
+`);
 
     const invoiceUrl = order.invoice_url || order.order_status_url || `/account/orders/${order.id}`;
     const outstanding =
