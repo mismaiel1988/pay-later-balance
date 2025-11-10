@@ -8,6 +8,26 @@ app.use(express.urlencoded({ extended: true }));
 const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;  // <— reads from Render environment
 const SHOP = "0fme0w-es.myshopify.com";            // use .myshopify.com, not .com
 
+// ✅ Handles root route requests from Shopify App Proxy
+app.get("/", async (req, res) => {
+  try {
+    const orderId = req.query.order_id;
+    if (!orderId) return res.status(400).send("Missing order_id");
+
+    res.send(`
+      <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
+        <h2>Root Proxy Connected ✅</h2>
+        <p>Order ID: ${orderId}</p>
+        <p>This route handles traffic forwarded from the Shopify app proxy.</p>
+      </body></html>
+    `);
+  } catch (err) {
+    console.error("Root route error:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+
 // ✅ Handles both Shopify proxy route and direct Render requests
 app.get(["/apps/pay-balance", "/pay-balance"], async (req, res) => {
   try {
