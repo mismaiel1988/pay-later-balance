@@ -2,17 +2,29 @@ import express from "express";
 import fetch from "node-fetch";
 
 const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;
 const SHOP = "genuinebillycook.com";
 
+/**
+ * 🧾 PAY BALANCE PROXY ENDPOINT
+ * Called from: https://genuinebillycook.com/apps/pay-balance?order_id=XXXX
+ */
 app.get("/pay-balance", async (req, res) => {
   try {
-    const orderId = req.query.order_id;
+    const orderId = req.query.order_id || req.query.orderId;
     if (!orderId) return res.status(400).send("Missing order_id");
 
     const response = await fetch(
-      `https://${SHOP}/admin/api/2025-10/orders/${orderId}.json`,
-      { headers: { "X-Shopify-Access-Token": ADMIN_TOKEN } }
+      `https://${SHOP}/admin/api/2024-10/orders/${orderId}.json`,
+      {
+        headers: {
+          "X-Shopify-Access-Token": ADMIN_TOKEN,
+          "Content-Type": "application/json",
+        },
+      }
     );
 
     if (!response.ok) {
@@ -40,15 +52,18 @@ app.get("/pay-balance", async (req, res) => {
       `);
     }
 
-    const invoiceUrl = order.invoice_url || order.order_status_url;
+    const invoiceUrl = order.invoice_url || order.order_status_url || `/account/orders/${order.id}`;
+    const outstanding =
+      Number(order.total_due ?? order.total_price - (order.total_paid_amount || 0)).toFixed(2);
+
     res.send(`
       <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
         <h2>Pay Remaining Balance for ${order.name}</h2>
-        <p>Outstanding: $${Number(
-          order.total_due ??
-            order.total_price - (order.total_paid_amount || 0)
-        ).toFixed(2)}</p>
-        <a href="${invoiceUrl}" style="background:#000;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px;">Pay in Full</a>
+        <p>Outstanding: <strong>$${outstanding}</strong></p>
+        <a href="${invoiceUrl}" 
+           style="background:#0A213E;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px;">
+          Pay Now
+        </a>
       </body></html>
     `);
   } catch (err) {
@@ -57,8 +72,10 @@ app.get("/pay-balance", async (req, res) => {
   }
 });
 
-
-// ✅ Inject custom frontend script for hiding "Buy Again" and adding "Pay Remaining Balance"
+/**
+ * 🧩 FRONTEND INJECTOR (optional)
+ * Hides “Buy Again” and adds “Pay Remaining Balance” link on account pages.
+ */
 app.get("/inject-script.js", (req, res) => {
   res.type("application/javascript").send(`
     document.addEventListener("DOMContentLoaded", () => {
@@ -108,33 +125,5 @@ app.get("/inject-script.js", (req, res) => {
   `);
 });
 
-import express from "express";
-const app = express();
-
-// Your existing setup (if not already present)
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// ✅ Pay Balance Proxy Route (Shopify → Render)
-app.get("/pay-balance", (req, res) => {
-  const orderId = req.query.order_id || "unknown";
-
-  // For now, just confirm it’s connected
-  res.send(`
-    <html>
-      <body style="font-family:sans-serif; text-align:center; margin-top:50px;">
-        <h2>Shopify App Proxy Connected ✅</h2>
-        <p>Order ID: <strong>${orderId}</strong></p>
-        <p>This confirms that Shopify → Render proxy is working.</p>
-      </body>
-    </html>
-  `);
-});
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ App running on port ${PORT}`));
-
-
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Pay Balance proxy running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Pay Balance App running on port ${PORT}`));
