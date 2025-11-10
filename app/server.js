@@ -108,6 +108,32 @@ app.get("/inject-script.js", (req, res) => {
   `);
 });
 
+import express from "express";
+const app = express();
+
+// Your existing setup (if not already present)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ✅ Pay Balance Proxy Route (Shopify → Render)
+app.get("/pay-balance", (req, res) => {
+  const orderId = req.query.order_id || "unknown";
+
+  // For now, just confirm it’s connected
+  res.send(`
+    <html>
+      <body style="font-family:sans-serif; text-align:center; margin-top:50px;">
+        <h2>Shopify App Proxy Connected ✅</h2>
+        <p>Order ID: <strong>${orderId}</strong></p>
+        <p>This confirms that Shopify → Render proxy is working.</p>
+      </body>
+    </html>
+  `);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ App running on port ${PORT}`));
+
 
 
 const PORT = process.env.PORT || 3000;
