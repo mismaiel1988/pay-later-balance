@@ -12,7 +12,7 @@ const SHOP = "0fme0w-es.myshopify.com";            // use .myshopify.com, not .c
  * 🧾 PAY BALANCE PROXY ENDPOINT
  * Called from: https://genuinebillycook.com/apps/pay-balance?order_id=XXXX
  */
-app.get("/pay-balance", async (req, res) => {
+app.get(["/pay-balance", "/apps/pay-balance"], async (req, res) => {
   try {
     const orderId = req.query.order_id || req.query.orderId;
     if (!orderId) return res.status(400).send("Missing order_id");
