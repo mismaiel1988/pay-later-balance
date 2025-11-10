@@ -8,56 +8,13 @@ app.use(express.urlencoded({ extended: true }));
 const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;  // <— reads from Render environment
 const SHOP = "0fme0w-es.myshopify.com";            // use .myshopify.com, not .com
 
-// ✅ Handles root route requests from Shopify App Proxy
-app.get("/", async (req, res) => {
-  try {
-    const orderId = req.query.order_id;
-    if (!orderId) return res.status(400).send("Missing order_id");
-
-    res.send(`
-      <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
-        <h2>Root Proxy Connected ✅</h2>
-        <p>Order ID: ${orderId}</p>
-        <p>This route handles traffic forwarded from the Shopify app proxy.</p>
-      </body></html>
-    `);
-  } catch (err) {
-    console.error("Root route error:", err);
-    res.status(500).send("Internal Server Error");
-  }
-});
-
-
-// ✅ Handles both Shopify proxy route and direct Render requests
-app.get(["/apps/pay-balance", "/pay-balance"], async (req, res) => {
-  try {
-    const orderId = req.query.order_id;
-    if (!orderId) return res.status(400).send("Missing order_id");
-
-    res.send(`
-      <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
-        <h2>Shopify Proxy Connected ✅</h2>
-        <p>Order ID: ${orderId}</p>
-        <p>This confirms your app proxy is working.</p>
-      </body></html>
-    `);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Internal Server Error");
-  }
-});
-
-
-
-/**
- * 🧾 PAY BALANCE PROXY ENDPOINT
- * Called from: https://genuinebillycook.com/apps/pay-balance?order_id=XXXX
- */
-app.get(["/pay-balance", "/apps/pay-balance"], async (req, res) => {
+// ✅ Handles Shopify App Proxy and direct Render requests (merged route)
+app.get(["/", "/apps/pay-balance", "/pay-balance"], async (req, res) => {
   try {
     const orderId = req.query.order_id || req.query.orderId;
     if (!orderId) return res.status(400).send("Missing order_id");
 
+    // --- Fetch order details from Shopify Admin API ---
     const response = await fetch(
       `https://${SHOP}/admin/api/2024-10/orders/${orderId}.json`,
       {
@@ -78,119 +35,108 @@ app.get(["/pay-balance", "/apps/pay-balance"], async (req, res) => {
     const order = data.order;
     if (!order) return res.status(404).send("Order not found.");
 
-const canceled = !!order.cancelled_at;
-const isPending =
-  ["pending", "partially_paid"].includes(order.financial_status);
+    // --- Determine order payment state ---
+    const canceled = !!order.cancelled_at;
+    const isPending =
+      ["pending", "partially_paid"].includes(order.financial_status);
 
-if (canceled) {
-  return res.send(`
-    <html>
-      <body style="
-        font-family: Georgia, 'Times New Roman', serif;
-        background-color: #D2C2A7;
-        color: #1C1C1C;
-        text-align: center;
-        margin-top: 96px;
-      ">
-        <h2 style="letter-spacing:1px;">Order ${order.name}</h2>
-        <p>This order has been canceled — no balance due.</p>
-        <a href="/account" style="
-          display:inline-block;
-          border:1px solid #1C1C1C;
-          padding:10px 18px;
-          border-radius:6px;
-          text-decoration:none;
-          color:#1C1C1C;
-          margin-top:16px;
-          font-weight:600;
-        ">Back to Orders</a>
-      </body>
-    </html>
-  `);
-}
+    if (canceled) {
+      return res.send(`
+        <html>
+          <body style="
+            font-family: Georgia, 'Times New Roman', serif;
+            background-color: #D2C2A7;
+            color: #1C1C1C;
+            text-align: center;
+            margin-top: 96px;
+          ">
+            <h2 style="letter-spacing:1px;">Order ${order.name}</h2>
+            <p>This order has been canceled — no balance due.</p>
+            <a href="/account" style="
+              display:inline-block;
+              border:1px solid #1C1C1C;
+              padding:10px 18px;
+              border-radius:6px;
+              text-decoration:none;
+              color:#1C1C1C;
+              margin-top:16px;
+              font-weight:600;
+            ">Back to Orders</a>
+          </body>
+        </html>
+      `);
+    }
 
-if (isPending) {
-  const due =
-    Number(order.total_due ?? order.total_price - (order.total_paid_amount || 0)).toFixed(2);
-  const invoiceUrl = order.invoice_url || order.order_status_url;
+    if (isPending) {
+      const due = Number(
+        order.total_due ??
+        order.total_price - (order.total_paid_amount || 0)
+      ).toFixed(2);
+      const invoiceUrl = order.invoice_url || order.order_status_url;
 
-  return res.send(`
-    <html>
-      <body style="
-        font-family: Georgia, 'Times New Roman', serif;
-        background-color: #D2C2A7;
-        color: #1C1C1C;
-        text-align: center;
-        margin-top: 96px;
-      ">
-        <h2 style="letter-spacing:1px;">Pay Remaining Balance for ${order.name}</h2>
-        <p style="font-size:18px;margin-bottom:30px;">
-          Outstanding: <strong>$${due}</strong>
-        </p>
-        <a href="${invoiceUrl}" style="
-          display:inline-block;
-          background-color:#0A213E;
-          color:#fff;
-          padding:14px 28px;
-          border-radius:6px;
-          text-decoration:none;
-          font-weight:600;
-          letter-spacing:0.5px;
-          transition:background-color 0.2s ease-in-out;
-        " onmouseover="this.style.backgroundColor='#000'" onmouseout="this.style.backgroundColor='#0A213E'">
-          Pay in Full
-        </a>
-      </body>
-    </html>
-  `);
-}
+      return res.send(`
+        <html>
+          <body style="
+            font-family: Georgia, 'Times New Roman', serif;
+            background-color: #D2C2A7;
+            color: #1C1C1C;
+            text-align: center;
+            margin-top: 96px;
+          ">
+            <h2 style="letter-spacing:1px;">Pay Remaining Balance for ${order.name}</h2>
+            <p style="font-size:18px;margin-bottom:30px;">
+              Outstanding: <strong>$${due}</strong>
+            </p>
+            <a href="${invoiceUrl}" style="
+              display:inline-block;
+              background-color:#0A213E;
+              color:#fff;
+              padding:14px 28px;
+              border-radius:6px;
+              text-decoration:none;
+              font-weight:600;
+              letter-spacing:0.5px;
+              transition:background-color 0.2s ease-in-out;
+            " onmouseover="this.style.backgroundColor='#000'" onmouseout="this.style.backgroundColor='#0A213E'">
+              Pay in Full
+            </a>
+          </body>
+        </html>
+      `);
+    }
 
-// default (fully paid)
-return res.send(`
-  <html>
-    <body style="
-      font-family: Georgia, 'Times New Roman', serif;
-      background-color: #D2C2A7;
-      color: #1C1C1C;
-      text-align: center;
-      margin-top: 96px;
-    ">
-      <h2 style="letter-spacing:1px;">Order ${order.name}</h2>
-      <p>This order is fully paid — no balance due.</p>
-      <a href="/account" style="
-        display:inline-block;
-        border:1px solid #1C1C1C;
-        padding:10px 18px;
-        border-radius:6px;
-        text-decoration:none;
-        color:#1C1C1C;
-        margin-top:16px;
-        font-weight:600;
-      ">Back to Orders</a>
-    </body>
-  </html>
-`);
-
-
-    const invoiceUrl = order.invoice_url || order.order_status_url || `/account/orders/${order.id}`;
-    const outstanding =
-      Number(order.total_due ?? order.total_price - (order.total_paid_amount || 0)).toFixed(2);
-
-    res.send(`
-      <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
-        <h2>Pay Remaining Balance for ${order.name}</h2>
-        <p>Outstanding: <strong>$${outstanding}</strong></p>
-        <a href="${invoiceUrl}" 
-           style="background:#0A213E;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px;">
-          Pay Now
-        </a>
-      </body></html>
+    // --- Default: fully paid ---
+    return res.send(`
+      <html>
+        <body style="
+          font-family: Georgia, 'Times New Roman', serif;
+          background-color: #D2C2A7;
+          color: #1C1C1C;
+          text-align: center;
+          margin-top: 96px;
+        ">
+          <h2 style="letter-spacing:1px;">Order ${order.name}</h2>
+          <p>This order is fully paid — no balance due.</p>
+          <a href="/account" style="
+            display:inline-block;
+            border:1px solid #1C1C1C;
+            padding:10px 18px;
+            border-radius:6px;
+            text-decoration:none;
+            color:#1C1C1C;
+            margin-top:16px;
+            font-weight:600;
+          ">Back to Orders</a>
+        </body>
+      </html>
     `);
+
   } catch (err) {
     console.error(err);
     res.status(500).send("Internal Server Error");
   }
 });
+
 
 /**
  * 🧩 FRONTEND INJECTOR (optional)
