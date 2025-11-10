@@ -4,9 +4,9 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;
-const SHOP = "genuinebillycook.com";
+// ✅ Secure Admin API setup
+const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;  // <— reads from Render environment
+const SHOP = "genuinebillycook.myshopify.com";            // use .myshopify.com, not .com
 
 /**
  * 🧾 PAY BALANCE PROXY ENDPOINT
