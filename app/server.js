@@ -67,43 +67,51 @@ app.get(["/", "/apps/pay-balance", "/pay-balance"], async (req, res) => {
       `);
     }
 
-    if (isPending) {
-      const due = Number(
-        order.total_due ??
-        order.total_price - (order.total_paid_amount || 0)
-      ).toFixed(2);
-      const invoiceUrl = order.invoice_url || order.order_status_url;
+if (isPending) {
+  const due = Number(
+    order.total_due ??
+    order.total_price - (order.total_paid_amount || 0)
+  ).toFixed(2);
+  const invoiceUrl = order.invoice_url || order.order_status_url;
 
-      return res.send(`
-        <html>
-          <body style="
-            font-family: Georgia, 'Times New Roman', serif;
-            background-color: #D2C2A7;
-            color: #1C1C1C;
-            text-align: center;
-            margin-top: 96px;
-          ">
-            <h2 style="letter-spacing:1px;">Pay Remaining Balance for ${order.name}</h2>
-            <p style="font-size:18px;margin-bottom:30px;">
-              Outstanding: <strong>$${due}</strong>
-            </p>
-            <a href="${invoiceUrl}" style="
-              display:inline-block;
-              background-color:#0A213E;
-              color:#fff;
-              padding:14px 28px;
-              border-radius:6px;
-              text-decoration:none;
-              font-weight:600;
-              letter-spacing:0.5px;
-              transition:background-color 0.2s ease-in-out;
-            " onmouseover="this.style.backgroundColor='#000'" onmouseout="this.style.backgroundColor='#0A213E'">
-              Pay in Full
-            </a>
-          </body>
-        </html>
-      `);
-    }
+  // 🔁 If Shopify returned an active invoice URL, redirect the user there
+  if (invoiceUrl && invoiceUrl.includes("checkout") || invoiceUrl.includes("payments")) {
+    console.log(`Redirecting to invoice for order ${order.name}: ${invoiceUrl}`);
+    return res.redirect(invoiceUrl);
+  }
+
+  // 🧾 Otherwise, render the fallback page (if no invoice URL yet)
+  return res.send(`
+    <html>
+      <body style="
+        font-family: Georgia, 'Times New Roman', serif;
+        background-color: #D2C2A7;
+        color: #1C1C1C;
+        text-align: center;
+        margin-top: 96px;
+      ">
+        <h2 style="letter-spacing:1px;">Pay Remaining Balance for ${order.name}</h2>
+        <p style="font-size:18px;margin-bottom:30px;">
+          Outstanding: <strong>$${due}</strong>
+        </p>
+        <p style="max-width:480px;margin:0 auto 24px;">
+          A payment link for this order hasn’t been generated yet.
+          Please check your email or contact us for assistance.
+        </p>
+        <a href="/account" style="
+          display:inline-block;
+          border:1px solid #1C1C1C;
+          padding:10px 18px;
+          border-radius:6px;
+          text-decoration:none;
+          color:#1C1C1C;
+          font-weight:600;
+        ">Back to Orders</a>
+      </body>
+    </html>
+  `);
+}
+
 
     // --- Default: fully paid ---
     return res.send(`
