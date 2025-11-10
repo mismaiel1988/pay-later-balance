@@ -8,6 +8,27 @@ app.use(express.urlencoded({ extended: true }));
 const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;  // <— reads from Render environment
 const SHOP = "0fme0w-es.myshopify.com";            // use .myshopify.com, not .com
 
+// ✅ Handles both Shopify proxy route and direct Render requests
+app.get(["/apps/pay-balance", "/pay-balance"], async (req, res) => {
+  try {
+    const orderId = req.query.order_id;
+    if (!orderId) return res.status(400).send("Missing order_id");
+
+    res.send(`
+      <html><body style="font-family:sans-serif;text-align:center;margin-top:96px">
+        <h2>Shopify Proxy Connected ✅</h2>
+        <p>Order ID: ${orderId}</p>
+        <p>This confirms your app proxy is working.</p>
+      </body></html>
+    `);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+
+
 /**
  * 🧾 PAY BALANCE PROXY ENDPOINT
  * Called from: https://genuinebillycook.com/apps/pay-balance?order_id=XXXX
