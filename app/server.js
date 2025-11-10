@@ -6,7 +6,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // ✅ Secure Admin API setup
 const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;  // <— reads from Render environment
-const SHOP = "genuinebillycook.myshopify.com";            // use .myshopify.com, not .com
+const SHOP = "0fme0w-es.myshopify.com";            // use .myshopify.com, not .com
 
 /**
  * 🧾 PAY BALANCE PROXY ENDPOINT
