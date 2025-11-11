@@ -1,3 +1,5 @@
+// Shopify detect extension build trigger
+
 import { reactExtension, BlockStack, Button } from "@shopify/ui-extensions-react/customer-account";
 
 export default reactExtension("customer-account.order-details.block.render", ({ order }) => {
