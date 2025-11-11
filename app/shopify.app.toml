@@ -3,18 +3,16 @@ client_id = "c9f38f889b5dcf75a81696b7c44d5ba"
 application_url = "https://pay-later-balance-z555.onrender.com"
 embedded = true
 
-[build]
-automatically_update_urls_on_dev = true
-dev_store_url = "0fme0w-es.myshopify.com"
+[access_scopes]
+scopes = "read_orders,write_orders,read_customers,write_payment_terms,read_payment_terms,read_payment_customizations,read_store_credit_account_transactions,read_app_proxy,write_app_proxy"
 
 [auth]
-redirect_urls = [
-  "https://pay-later-balance-z555.onrender.com/auth/callback",
-  "https://pay-later-balance-z555.onrender.com/auth/shopify/callback"
-]
+redirect_urls = ["https://pay-later-balance-z555.onrender.com/auth/callback"]
 
 [webhooks]
 api_version = "2025-10"
 
-[pos]
-embedded = false
+[[extensions]]
+name = "Pay Balance Extension"
+handle = "pay-balance-extension"
+type = "customer_account_ui_extension"
