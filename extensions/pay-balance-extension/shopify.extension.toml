@@ -4,4 +4,3 @@ extension_points = ["customer-account.order-details.block.render"]
 
 [build]
 command = "echo 'no build needed'"
-
