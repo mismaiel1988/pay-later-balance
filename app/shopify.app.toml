@@ -1,19 +1,16 @@
-name = "Pay Later Balance App v2"
-client_id = "0e7dcb18c4397d89c6c36224ea12c67"
+name = "Pay Later Balance App"
+client_id = "c9f38f889b5dcf75a81696b7c44d5ba"
 application_url = "https://pay-later-balance-z555.onrender.com"
-embedded = false
+embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
 dev_store_url = "0fme0w-es.myshopify.com"
 
-[access_scopes]
-scopes = "read_orders, write_orders, read_customers, read_draft_orders, write_draft_orders, read_price_rules, write_price_rules, read_payment_terms, write_payment_terms"
-
 [auth]
 redirect_urls = [
   "https://pay-later-balance-z555.onrender.com/auth/callback",
-  "https://pay-later-balance-z555.onrender.com/api/auth/callback"
+  "https://pay-later-balance-z555.onrender.com/auth/shopify/callback"
 ]
 
 [webhooks]
