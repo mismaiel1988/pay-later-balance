@@ -7,6 +7,14 @@ app.use(express.urlencoded({ extended: true }));
 // ✅ Secure Admin API setup
 const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;  // <— reads from Render environment
 const SHOP = "0fme0w-es.myshopify.com";            // use .myshopify.com, not .com
+console.log("🔍 Shopify ENV CHECK:");
+console.log("SHOPIFY_STORE_DOMAIN:", process.env.SHOPIFY_STORE_DOMAIN);
+console.log("SHOPIFY_API_KEY:", process.env.SHOPIFY_API_KEY);
+console.log("SHOPIFY_API_SECRET:", process.env.SHOPIFY_API_SECRET ? "✅ Loaded" : "❌ Missing");
+console.log("SHOPIFY_ADMIN_API_ACCESS_TOKEN:", process.env.SHOPIFY_ADMIN_API_ACCESS_TOKEN ? "✅ Loaded" : "❌ Missing");
+
+
+
 
 // ✅ Handles Shopify App Proxy and direct Render requests (merged route)
 app.get(["/", "/apps/pay-balance", "/pay-balance"], async (req, res) => {
