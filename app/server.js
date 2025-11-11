@@ -1,13 +1,31 @@
-import express from "express";
-import fetch from "node-fetch";
+import 'dotenv/config';
+import express from 'express';
+import fetch from 'node-fetch';
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-// ✅ Secure Admin API setup
-const ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;  // <— reads from Render environment
-const SHOP = "0fme0w-es.myshopify.com";            // use .myshopify.com, not .com
+const PORT = process.env.PORT || 10000;
 
+const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
+const SHOPIFY_ADMIN_API_ACCESS_TOKEN = process.env.SHOPIFY_ADMIN_API_ACCESS_TOKEN;
+
+app.get('/pay-balance', async (req, res) => {
+  const orderId = req.query.order_id;
+  try {
+    const response = await fetch(`https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}.json`, {
+      headers: {
+        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    res.send(data);
+  } catch (error) {
+    res.send({ error: error.message });
+  }
+});
+
+app.listen(PORT, () => console.log(`✅ Pay Balance App running on port ${PORT}`));
 
 
 
