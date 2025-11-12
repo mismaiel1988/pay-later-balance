@@ -1,5 +1,5 @@
 name = "Pay Balance Extension"
-type = "ui_extension"
+type = "customer_accounts_ui_extension"
 handle = "pay-balance-extension"
 
 [[extension_points]]
