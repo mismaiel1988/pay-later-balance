@@ -1,4 +1,4 @@
-type = "customer_accounts_ui_extension"
+type = "ui_extension"
 name = "Pay Balance Extension"
 handle = "pay-balance-extension"
 
