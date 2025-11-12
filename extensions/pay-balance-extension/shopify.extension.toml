@@ -1,6 +1,6 @@
 name = "Pay Balance Extension"
-type = "customer_accounts_ui_extension"
 handle = "pay-balance-extension"
+type = "customer_account_ui_extension"
 
 [[extension_points]]
 target = "customer-account.order-details.block.render"
