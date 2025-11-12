@@ -1,6 +1,6 @@
 type = "customer_account_ui_extension"
 name = "Pay Balance Extension"
-extension_points = ["customer-account.order-details.block.render"]
+extension_points = ["customer-account.order-status.block.render"]
 
 [build]
 command = "echo 'no build needed'"
