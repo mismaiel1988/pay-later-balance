@@ -25,7 +25,7 @@ app.get('/', (req, res) => {
   res.send('✅ Pay Later Balance App is live and connected to Shopify API');
 });
 
-// Pay Balance route - Direct checkout link
+// Pay Balance route - Auto-send invoice
 app.get('/apps/pay-balance', async (req, res) => {
   const orderGid = req.query.order_id;
 
@@ -40,8 +40,9 @@ app.get('/apps/pay-balance', async (req, res) => {
   }
 
   try {
-    const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}.json`;
-    const response = await fetch(url, {
+    // First, get the order details
+    const orderUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}.json`;
+    const orderResponse = await fetch(orderUrl, {
       method: 'GET',
       headers: {
         'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
@@ -49,47 +50,137 @@ app.get('/apps/pay-balance', async (req, res) => {
       },
     });
 
-    const data = await response.json();
+    const orderData = await orderResponse.json();
 
-    if (response.ok) {
-      const order = data.order;
-      
-      // Check if order has a checkout token
-      if (order.checkout_token) {
-        // Build the checkout recovery URL
-        const checkoutUrl = `https://${SHOPIFY_STORE_DOMAIN.replace('.myshopify.com', '')}.myshopify.com/checkouts/${order.checkout_token}/recover`;
-        res.redirect(checkoutUrl);
-      } else {
-        // No checkout token available
-        const remainingBalance = parseFloat(order.total_outstanding || 0);
-        res.send(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Payment Not Available</title>
-              <style>
-                body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-                .info { background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; }
-              </style>
-            </head>
-            <body>
-              <h1>Payment Link Unavailable</h1>
-              <div class="info">
-                <p><strong>Order:</strong> ${order.name}</p>
-                <p><strong>Balance Due:</strong> $${remainingBalance.toFixed(2)}</p>
-                <p>Please contact support to receive a payment link for this order.</p>
-                <p>Email: ${order.email}</p>
+    if (!orderResponse.ok) {
+      return res.status(orderResponse.status).send(`<h1>Error fetching order</h1><p>${JSON.stringify(orderData.errors)}</p>`);
+    }
+
+    const order = orderData.order;
+    const remainingBalance = parseFloat(order.total_outstanding || 0);
+
+    // Send invoice via Shopify API
+    const invoiceUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}/invoice.json`;
+    const invoiceResponse = await fetch(invoiceUrl, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        invoice: {
+          subject: `Payment Required for Order ${order.name}`,
+          to: order.email,
+          custom_message: `Your order has a remaining balance of $${remainingBalance.toFixed(2)}. Please click the button below to complete your payment using your preferred payment method.`
+        }
+      })
+    });
+
+    const invoiceData = await invoiceResponse.json();
+
+    if (invoiceResponse.ok) {
+      // Invoice sent successfully
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Payment Link Sent</title>
+            <style>
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                max-width: 600px; 
+                margin: 50px auto; 
+                padding: 20px; 
+                text-align: center;
+                background: #f9fafb;
+              }
+              .success { 
+                background: white;
+                padding: 40px; 
+                border-radius: 12px; 
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                margin: 20px 0; 
+              }
+              .checkmark {
+                font-size: 64px;
+                color: #10b981;
+                margin-bottom: 20px;
+              }
+              h1 {
+                color: #111827;
+                margin-bottom: 10px;
+              }
+              .email {
+                font-size: 18px;
+                font-weight: 600;
+                color: #2563eb;
+                margin: 20px 0;
+              }
+              .amount { 
+                font-size: 32px; 
+                font-weight: bold; 
+                color: #10b981; 
+                margin: 20px 0; 
+              }
+              .info {
+                color: #6b7280;
+                line-height: 1.6;
+              }
+              .payment-methods {
+                margin-top: 30px;
+                padding-top: 30px;
+                border-top: 1px solid #e5e7eb;
+              }
+              .payment-methods p {
+                color: #6b7280;
+                font-size: 14px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="success">
+              <div class="checkmark">✓</div>
+              <h1>Payment Link Sent!</h1>
+              <p class="info">We've sent a secure payment link to:</p>
+              <p class="email">${order.email}</p>
+              <p class="amount">$${remainingBalance.toFixed(2)}</p>
+              <p class="info">
+                Please check your email inbox (and spam folder) for the payment link.<br>
+                The email should arrive within a few moments.
+              </p>
+              <div class="payment-methods">
+                <p><strong>Available payment methods:</strong><br>
+                Apple Pay • Google Pay • Credit/Debit Card</p>
               </div>
-            </body>
-          </html>
-        `);
-      }
+              <p style="margin-top: 30px; color: #9ca3af; font-size: 12px;">Order ${order.name}</p>
+            </div>
+          </body>
+        </html>
+      `);
     } else {
-      res.status(response.status).send(`<h1>Error fetching order</h1><p>${JSON.stringify(data.errors)}</p>`);
+      res.status(invoiceResponse.status).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Error Sending Invoice</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+              .error { background: #fee; padding: 20px; border-radius: 8px; border-left: 4px solid #c00; }
+            </style>
+          </head>
+          <body>
+            <div class="error">
+              <h1>Unable to Send Payment Link</h1>
+              <p>There was an error sending the payment link. Please contact support.</p>
+              <p><small>Error: ${JSON.stringify(invoiceData.errors)}</small></p>
+            </div>
+          </body>
+        </html>
+      `);
     }
 
   } catch (error) {
-    console.error('Error fetching order:', error);
+    console.error('Error:', error);
     res.status(500).send(`<h1>Server Error</h1><p>${error.message}</p>`);
   }
 });
@@ -131,9 +222,7 @@ app.get('/api/order-payment-status', async (req, res) => {
         totalPrice: parseFloat(order.total_price),
         remainingBalance: remainingBalance,
         hasOutstandingBalance: remainingBalance > 0,
-        financialStatus: order.financial_status,
-        checkoutToken: order.checkout_token,
-        checkoutId: order.checkout_id
+        financialStatus: order.financial_status
       });
     } else {
       res.status(response.status).json({ error: 'Failed to fetch order', details: data.errors });
