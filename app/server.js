@@ -25,7 +25,7 @@ app.get('/', (req, res) => {
   res.send('✅ Pay Later Balance App is live and connected to Shopify API');
 });
 
-// Pay Balance route - Redirect to Shopify invoice
+// Pay Balance route - Direct checkout link
 app.get('/apps/pay-balance', async (req, res) => {
   const orderGid = req.query.order_id;
 
@@ -54,12 +54,35 @@ app.get('/apps/pay-balance', async (req, res) => {
     if (response.ok) {
       const order = data.order;
       
-      // Check if order has an order_status_url (customer-facing payment page)
-      if (order.order_status_url) {
-        // Redirect to Shopify's order status page where they can pay
-        res.redirect(order.order_status_url);
+      // Check if order has a checkout token
+      if (order.checkout_token) {
+        // Build the checkout recovery URL
+        const checkoutUrl = `https://${SHOPIFY_STORE_DOMAIN.replace('.myshopify.com', '')}.myshopify.com/checkouts/${order.checkout_token}/recover`;
+        res.redirect(checkoutUrl);
       } else {
-        res.send('<h1>Payment link not available</h1><p>Please contact support for payment instructions.</p>');
+        // No checkout token available
+        const remainingBalance = parseFloat(order.total_outstanding || 0);
+        res.send(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Payment Not Available</title>
+              <style>
+                body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+                .info { background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; }
+              </style>
+            </head>
+            <body>
+              <h1>Payment Link Unavailable</h1>
+              <div class="info">
+                <p><strong>Order:</strong> ${order.name}</p>
+                <p><strong>Balance Due:</strong> $${remainingBalance.toFixed(2)}</p>
+                <p>Please contact support to receive a payment link for this order.</p>
+                <p>Email: ${order.email}</p>
+              </div>
+            </body>
+          </html>
+        `);
       }
     } else {
       res.status(response.status).send(`<h1>Error fetching order</h1><p>${JSON.stringify(data.errors)}</p>`);
