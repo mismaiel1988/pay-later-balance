@@ -2,8 +2,11 @@ import express from 'express';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
+import cors from 'cors';
 dotenv.config();
 const app = express();
+app.use(cors());
+
 
 // Load environment variables
 const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
@@ -97,6 +100,57 @@ app.get('/apps/pay-balance', async (req, res) => {
     res.status(500).send(`<h1>Server Error</h1><p>${error.message}</p>`);
   }
 });
+// JSON API endpoint for extension to check payment status
+app.get('/api/order-payment-status', async (req, res) => {
+  const orderGid = req.query.order_id;
+
+  if (!orderGid) {
+    return res.status(400).json({ error: 'Missing order ID' });
+  }
+
+  const orderId = extractOrderId(orderGid);
+  
+  if (!orderId) {
+    return res.status(400).json({ error: 'Invalid order ID format' });
+  }
+
+  try {
+    const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}.json`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      const order = data.order;
+      const remainingBalance = parseFloat(order.total_outstanding || 0);
+      
+      // Return JSON for the extension
+      res.json({
+        orderId: order.id,
+        orderName: order.name,
+        totalPrice: parseFloat(order.total_price),
+        remainingBalance: remainingBalance,
+        hasOutstandingBalance: remainingBalance > 0,
+        financialStatus: order.financial_status
+      });
+    } else {
+      res.status(response.status).json({ error: 'Failed to fetch order', details: data.errors });
+    }
+
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    res.status(500).json({ error: 'Server error', message: error.message });
+  }
+});
+
+
+
 
 app.listen(PORT, () => {
   console.log(`✅ Pay Balance App running on port ${PORT}`);
