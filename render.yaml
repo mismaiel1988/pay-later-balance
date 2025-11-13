@@ -6,10 +6,12 @@ services:
     branch: main
     rootDir: .
     buildCommand: |
-      cd $RENDER_PROJECT_ROOT
+      cd $RENDER_PROJECT_ROOT/app
+      npm install
+      cd $RENDER_PROJECT_ROOT/extensions/pay-balance-extension
       npm install
     startCommand: |
-      cd $RENDER_PROJECT_ROOT
+      cd $RENDER_PROJECT_ROOT/app
       npm start
     envVars:
       - key: SHOPIFY_ADMIN_API_TOKEN
