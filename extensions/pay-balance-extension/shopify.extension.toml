@@ -1,8 +1,14 @@
 type = "ui_extension"
 name = "Pay Balance Extension"
 
+# Extension for order DETAILS page
 [[extension_points]]
 target = "customer-account.order-details.block.render"
+module = "./src/index.jsx"
+
+# Extension for order LIST page
+[[extension_points]]
+target = "customer-account.order-index.block.render"
 module = "./src/index.jsx"
 
 [build]
