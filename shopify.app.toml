@@ -1,0 +1,44 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "c9f30f889b5dcd75a81696b7c440d5ba"
+name = "Pay Later Balance App v2"
+application_url = "https://pay-later-balance-z555.onrender.com"
+embedded = true
+
+[webhooks]
+api_version = "2025-10"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_app_proxy,write_app_proxy"
+optional_scopes = [
+  "read_assigned_fulfillment_orders",
+  "read_channels",
+  "read_customers",
+  "write_customers",
+  "read_price_rules",
+  "read_draft_orders",
+  "read_metaobjects",
+  "write_order_edits",
+  "read_order_edits",
+  "read_orders",
+  "write_orders",
+  "read_payment_terms",
+  "write_payment_terms",
+  "read_payment_customizations",
+  "read_purchase_options",
+  "read_returns",
+  "read_script_tags",
+  "read_shopify_payments_accounts",
+  "read_store_credit_account_transactions",
+  "read_store_credit_accounts"
+]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://pay-later-balance-z555.onrender.com/auth/callback" ]
+
+[app_proxy]
+url = "https://pay-later-balance-z555.onrender.com/pay-balance"
+subpath = "pay-balance"
+prefix = "apps"

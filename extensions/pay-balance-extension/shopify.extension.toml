@@ -1,6 +1,8 @@
-type = "customer_accounts_ui_extension"
+type = "ui_extension"
 name = "Pay Balance Extension"
-extension_points = ["customer-account.order-details.block.render"]
+[[extension_points]]
+target = "customer-account.order-details.block.render"
+module = "./src/index.jsx"
 
 [build]
 command = "echo 'no build needed'"
