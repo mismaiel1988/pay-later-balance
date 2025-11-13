@@ -7,5 +7,14 @@ name = "Pay Balance Extension"
 target = "customer-account.order-status.block.render"
 module = "./src/index.jsx"
 
+[[extension_points]]
+target = "customer-account.order-index.block.render"
+module = "./src/index.jsx"
+
+[capabilities]
+api_access = true
+network_access = true
+
 [build]
 command = "echo 'no build needed'"
+

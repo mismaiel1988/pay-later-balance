@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   reactExtension, 
   BlockStack, 
@@ -6,40 +6,68 @@ import {
   useApi
 } from "@shopify/ui-extensions-react/customer-account";
 
+const BACKEND_URL = 'https://pay-later-balance-z555.onrender.com';
+
+// For individual order status page
 export default reactExtension(
   "customer-account.order-status.block.render", 
   () => <PayBalanceButton />
 );
 
-function PayBalanceButton() {
-  const { order, extension } = useApi();
-  
-  if (!order) return null;
-  
-  // Check if there's an outstanding balance
-  const hasOutstandingBalance = order?.totalOutstanding?.amount && 
-                                 parseFloat(order.totalOutstanding.amount) > 0;
+// For orders list page
+export const ordersListExtension = reactExtension(
+  "customer-account.order-index.block.render",
+  () => null
+);
 
-  // Don't show button if order is fully paid
-  if (!hasOutstandingBalance) return null;
+function PayBalanceButton() {
+  const { order } = useApi();
+  const [paymentStatus, setPaymentStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    if (!order?.current?.id) return;
+    
+    const fetchPaymentStatus = async () => {
+      try {
+        const response = await fetch(
+          `${BACKEND_URL}/api/order-payment-status?order_id=${encodeURIComponent(order.current.id)}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          setPaymentStatus(data);
+        }
+      } catch (error) {
+        console.error('Error fetching payment status:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchPaymentStatus();
+  }, [order]);
+  
+  if (!order || loading) return null;
+  
+  // Only show button if there's an outstanding balance
+  if (!paymentStatus?.hasOutstandingBalance) return null;
 
   const handlePayment = () => {
-    // Navigate to the order status page which has payment functionality
-    if (order?.statusPageUrl) {
-      extension.navigate(order.statusPageUrl);
-    }
+    // Redirect to your payment page
+    window.location.href = `${BACKEND_URL}/apps/pay-balance?order_id=${encodeURIComponent(order.current.id)}`;
   };
 
   return (
-    <BlockStack spacing="tight">
+    <BlockStack>
       <Button
-        accessibilityLabel="Pay Remaining Balance"
         onPress={handlePayment}
         kind="primary"
       >
-        Pay Remaining Balance
+        Pay now
       </Button>
     </BlockStack>
   );
 }
+
 
