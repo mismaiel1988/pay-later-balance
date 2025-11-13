@@ -1,25 +1,39 @@
-// Shopify detect extension build trigger
+import React from 'react';
+import { 
+  reactExtension, 
+  BlockStack, 
+  Button,
+  useApi
+} from "@shopify/ui-extensions-react/customer-account";
 
-import { reactExtension, BlockStack, Button } from "@shopify/ui-extensions-react/customer-account";
+export default reactExtension(
+  "customer-account.order-details.block.render", 
+  () => <PayBalanceButton />
+);
 
-export default reactExtension("customer-account.order-details.block.render", ({ order }) => {
-  const status = order.financialStatus?.toLowerCase();
+function PayBalanceButton() {
+  const { order, extension } = useApi();
+  
+  const status = order?.financialStatus?.toLowerCase();
   const showButton = status === "pending" || status === "unpaid" || status === "partially_paid";
 
   if (!showButton) return null;
 
-  const payUrl = `/apps/pay-balance?order_id=${order.id}`;
+  const handlePayment = () => {
+    // Navigate to your app's payment page
+    const payUrl = `/apps/pay-balance?order_id=${encodeURIComponent(order.id)}`;
+    extension.navigate(payUrl);
+  };
 
   return (
     <BlockStack spacing="tight">
       <Button
         accessibilityLabel="Pay Remaining Balance"
-        onPress={() => (window.location.href = payUrl)}
+        onPress={handlePayment}
         kind="primary"
       >
         Pay Remaining Balance
       </Button>
     </BlockStack>
   );
-});
-
+}
