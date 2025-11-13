@@ -1,14 +1,10 @@
+api_version = "2025-01"
+uid = "b84cddcf-9021-9bf8-53d0-9eda2dd25e5c6d698a5e"
 type = "ui_extension"
 name = "Pay Balance Extension"
 
-# Extension for order DETAILS page
 [[extension_points]]
-target = "customer-account.order-details.block.render"
-module = "./src/index.jsx"
-
-# Extension for order LIST page
-[[extension_points]]
-target = "customer-account.order-index.block.render"
+target = "customer-account.order-status.block.render"
 module = "./src/index.jsx"
 
 [build]

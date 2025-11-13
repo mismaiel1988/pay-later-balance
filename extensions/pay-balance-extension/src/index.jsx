@@ -6,15 +6,8 @@ import {
   useApi
 } from "@shopify/ui-extensions-react/customer-account";
 
-// For order details page
 export default reactExtension(
-  "customer-account.order-details.block.render", 
-  () => <PayBalanceButton />
-);
-
-// For orders list page
-reactExtension(
-  "customer-account.order-index.block.render",
+  "customer-account.order-status.block.render", 
   () => <PayBalanceButton />
 );
 
@@ -23,19 +16,17 @@ function PayBalanceButton() {
   
   if (!order) return null;
   
-  const status = order?.financialStatus?.toLowerCase();
-  const showButton = status === "pending" || status === "unpaid" || status === "partially_paid";
+  // Check if there's an outstanding balance
+  const hasOutstandingBalance = order?.totalOutstanding?.amount && 
+                                 parseFloat(order.totalOutstanding.amount) > 0;
 
   // Don't show button if order is fully paid
-  if (!showButton) return null;
+  if (!hasOutstandingBalance) return null;
 
   const handlePayment = () => {
     // Navigate to the order status page which has payment functionality
     if (order?.statusPageUrl) {
       extension.navigate(order.statusPageUrl);
-    } else {
-      // Fallback: navigate to order details if statusPageUrl isn't available
-      extension.navigate(`/orders/${order.id}`);
     }
   };
 
@@ -51,3 +42,4 @@ function PayBalanceButton() {
     </BlockStack>
   );
 }
+

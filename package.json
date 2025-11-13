@@ -1,0 +1,17 @@
+{
+  "name": "pay-later-balance",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "shopify app dev",
+    "deploy": "shopify app deploy"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.0",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "@shopify/cli": "^3.50.0"
+  }
+}
