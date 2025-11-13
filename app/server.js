@@ -25,7 +25,7 @@ app.get('/', (req, res) => {
   res.send('✅ Pay Later Balance App is live and connected to Shopify API');
 });
 
-// Pay Balance route - Auto-send invoice
+// Pay Balance route - Auto-send invoice using GraphQL
 app.get('/apps/pay-balance', async (req, res) => {
   const orderGid = req.query.order_id;
 
@@ -40,7 +40,7 @@ app.get('/apps/pay-balance', async (req, res) => {
   }
 
   try {
-    // First, get the order details
+    // First, get the order details using REST API
     const orderUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}.json`;
     const orderResponse = await fetch(orderUrl, {
       method: 'GET',
@@ -59,112 +59,41 @@ app.get('/apps/pay-balance', async (req, res) => {
     const order = orderData.order;
     const remainingBalance = parseFloat(order.total_outstanding || 0);
 
-    // Send invoice via Shopify API
-    const invoiceUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}/invoice.json`;
-    const invoiceResponse = await fetch(invoiceUrl, {
+    // Send invoice using GraphQL
+    const graphqlUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/graphql.json`;
+    const graphqlQuery = `
+      mutation {
+        orderInvoiceSend(id: "${orderGid}") {
+          order {
+            id
+            name
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const invoiceResponse = await fetch(graphqlUrl, {
       method: 'POST',
       headers: {
         'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        invoice: {
-          subject: `Payment Required for Order ${order.name}`,
-          to: order.email,
-          custom_message: `Your order has a remaining balance of $${remainingBalance.toFixed(2)}. Please click the button below to complete your payment using your preferred payment method.`
-        }
-      })
+      body: JSON.stringify({ query: graphqlQuery })
     });
 
-    // Log the response for debugging
-    console.log('Invoice API Status:', invoiceResponse.status);
+    const invoiceData = await invoiceResponse.json();
+    console.log('Invoice GraphQL Response:', JSON.stringify(invoiceData));
 
-    // Check if invoice was sent successfully (204 = success with no content)
-    if (invoiceResponse.status === 204 || invoiceResponse.ok) {
-      // Invoice sent successfully
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Payment Link Sent</title>
-            <style>
-              body { 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                max-width: 600px; 
-                margin: 50px auto; 
-                padding: 20px; 
-                text-align: center;
-                background: #f9fafb;
-              }
-              .success { 
-                background: white;
-                padding: 40px; 
-                border-radius: 12px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                margin: 20px 0; 
-              }
-              .checkmark {
-                font-size: 64px;
-                color: #10b981;
-                margin-bottom: 20px;
-              }
-              h1 {
-                color: #111827;
-                margin-bottom: 10px;
-              }
-              .email {
-                font-size: 18px;
-                font-weight: 600;
-                color: #2563eb;
-                margin: 20px 0;
-              }
-              .amount { 
-                font-size: 32px; 
-                font-weight: bold; 
-                color: #10b981; 
-                margin: 20px 0; 
-              }
-              .info {
-                color: #6b7280;
-                line-height: 1.6;
-              }
-              .payment-methods {
-                margin-top: 30px;
-                padding-top: 30px;
-                border-top: 1px solid #e5e7eb;
-              }
-              .payment-methods p {
-                color: #6b7280;
-                font-size: 14px;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="success">
-              <div class="checkmark">✓</div>
-              <h1>Payment Link Sent!</h1>
-              <p class="info">We've sent a secure payment link to:</p>
-              <p class="email">${order.email}</p>
-              <p class="amount">$${remainingBalance.toFixed(2)}</p>
-              <p class="info">
-                Please check your email inbox (and spam folder) for the payment link.<br>
-                The email should arrive within a few moments.
-              </p>
-              <div class="payment-methods">
-                <p><strong>Available payment methods:</strong><br>
-                Apple Pay • Google Pay • Credit/Debit Card</p>
-              </div>
-              <p style="margin-top: 30px; color: #9ca3af; font-size: 12px;">Order ${order.name}</p>
-            </div>
-          </body>
-        </html>
-      `);
-    } else {
-      // Error sending invoice
-      const responseText = await invoiceResponse.text();
-      console.log('Invoice API Error Response:', responseText);
+    // Check for errors
+    if (invoiceData.data?.orderInvoiceSend?.userErrors?.length > 0) {
+      const errors = invoiceData.data.orderInvoiceSend.userErrors;
+      console.error('Invoice errors:', errors);
       
-      res.status(invoiceResponse.status).send(`
+      return res.status(400).send(`
         <!DOCTYPE html>
         <html>
           <head>
@@ -177,13 +106,91 @@ app.get('/apps/pay-balance', async (req, res) => {
           <body>
             <div class="error">
               <h1>Unable to Send Payment Link</h1>
-              <p>There was an error sending the payment link. Please contact support.</p>
-              <p><small>Status: ${invoiceResponse.status}</small></p>
+              <p>${errors.map(e => e.message).join(', ')}</p>
             </div>
           </body>
         </html>
       `);
     }
+
+    // Invoice sent successfully
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Payment Link Sent</title>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+              max-width: 600px; 
+              margin: 50px auto; 
+              padding: 20px; 
+              text-align: center;
+              background: #f9fafb;
+            }
+            .success { 
+              background: white;
+              padding: 40px; 
+              border-radius: 12px; 
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+              margin: 20px 0; 
+            }
+            .checkmark {
+              font-size: 64px;
+              color: #10b981;
+              margin-bottom: 20px;
+            }
+            h1 {
+              color: #111827;
+              margin-bottom: 10px;
+            }
+            .email {
+              font-size: 18px;
+              font-weight: 600;
+              color: #2563eb;
+              margin: 20px 0;
+            }
+            .amount { 
+              font-size: 32px; 
+              font-weight: bold; 
+              color: #10b981; 
+              margin: 20px 0; 
+            }
+            .info {
+              color: #6b7280;
+              line-height: 1.6;
+            }
+            .payment-methods {
+              margin-top: 30px;
+              padding-top: 30px;
+              border-top: 1px solid #e5e7eb;
+            }
+            .payment-methods p {
+              color: #6b7280;
+              font-size: 14px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="success">
+            <div class="checkmark">✓</div>
+            <h1>Payment Link Sent!</h1>
+            <p class="info">We've sent a secure payment link to:</p>
+            <p class="email">${order.email}</p>
+            <p class="amount">$${remainingBalance.toFixed(2)}</p>
+            <p class="info">
+              Please check your email inbox (and spam folder) for the payment link.<br>
+              The email should arrive within a few moments.
+            </p>
+            <div class="payment-methods">
+              <p><strong>Available payment methods:</strong><br>
+              Apple Pay • Google Pay • Credit/Debit Card</p>
+            </div>
+            <p style="margin-top: 30px; color: #9ca3af; font-size: 12px;">Order ${order.name}</p>
+          </div>
+        </body>
+      </html>
+    `);
 
   } catch (error) {
     console.error('Error:', error);
