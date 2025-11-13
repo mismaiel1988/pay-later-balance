@@ -131,7 +131,9 @@ app.get('/api/order-payment-status', async (req, res) => {
         totalPrice: parseFloat(order.total_price),
         remainingBalance: remainingBalance,
         hasOutstandingBalance: remainingBalance > 0,
-        financialStatus: order.financial_status
+        financialStatus: order.financial_status,
+        checkoutToken: order.checkout_token,
+        checkoutId: order.checkout_id
       });
     } else {
       res.status(response.status).json({ error: 'Failed to fetch order', details: data.errors });
