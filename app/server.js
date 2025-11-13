@@ -25,7 +25,7 @@ app.get('/', (req, res) => {
   res.send('✅ Pay Later Balance App is live and connected to Shopify API');
 });
 
-// Pay Balance route - UPDATED PATH
+// Pay Balance route - Redirect to Shopify invoice
 app.get('/apps/pay-balance', async (req, res) => {
   const orderGid = req.query.order_id;
 
@@ -33,7 +33,6 @@ app.get('/apps/pay-balance', async (req, res) => {
     return res.status(400).send('<h1>Error: Missing order ID</h1>');
   }
 
-  // Extract numeric ID from GID
   const orderId = extractOrderId(orderGid);
   
   if (!orderId) {
@@ -54,43 +53,14 @@ app.get('/apps/pay-balance', async (req, res) => {
 
     if (response.ok) {
       const order = data.order;
-      const remainingBalance = parseFloat(order.total_outstanding || 0);
       
-      // Return an HTML page for the customer
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Pay Remaining Balance</title>
-            <style>
-              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-              .order-info { background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-              .amount { font-size: 24px; font-weight: bold; color: #2c6ecb; }
-              button { background: #2c6ecb; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-              button:hover { background: #1e5bb8; }
-            </style>
-          </head>
-          <body>
-            <h1>Pay Remaining Balance</h1>
-            <div class="order-info">
-              <p><strong>Order Number:</strong> ${order.name}</p>
-              <p><strong>Order Total:</strong> $${order.total_price}</p>
-              <p><strong>Amount Paid:</strong> $${(parseFloat(order.total_price) - remainingBalance).toFixed(2)}</p>
-              <p class="amount">Remaining Balance: $${remainingBalance.toFixed(2)}</p>
-            </div>
-            
-            ${remainingBalance > 0 ? `
-              <p>Click below to complete your payment:</p>
-              <button onclick="alert('Payment processing would happen here')">Pay $${remainingBalance.toFixed(2)}</button>
-              <p style="color: #666; font-size: 14px; margin-top: 20px;">
-                Note: Payment processing integration needed
-              </p>
-            ` : `
-              <p style="color: green;">✓ This order is fully paid!</p>
-            `}
-          </body>
-        </html>
-      `);
+      // Check if order has an order_status_url (customer-facing payment page)
+      if (order.order_status_url) {
+        // Redirect to Shopify's order status page where they can pay
+        res.redirect(order.order_status_url);
+      } else {
+        res.send('<h1>Payment link not available</h1><p>Please contact support for payment instructions.</p>');
+      }
     } else {
       res.status(response.status).send(`<h1>Error fetching order</h1><p>${JSON.stringify(data.errors)}</p>`);
     }
@@ -100,6 +70,7 @@ app.get('/apps/pay-balance', async (req, res) => {
     res.status(500).send(`<h1>Server Error</h1><p>${error.message}</p>`);
   }
 });
+
 // JSON API endpoint for extension to check payment status
 app.get('/api/order-payment-status', async (req, res) => {
   const orderGid = req.query.order_id;
@@ -149,10 +120,8 @@ app.get('/api/order-payment-status', async (req, res) => {
   }
 });
 
-
-
-
 app.listen(PORT, () => {
   console.log(`✅ Pay Balance App running on port ${PORT}`);
   console.log(`🌐 Store: ${SHOPIFY_STORE_DOMAIN}`);
 });
+
