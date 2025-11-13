@@ -1,4 +1,4 @@
-import express from 'express';
+kimport express from 'express';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
@@ -78,36 +78,9 @@ app.get('/apps/pay-balance', async (req, res) => {
 
     // Log the response for debugging
     console.log('Invoice API Status:', invoiceResponse.status);
-    const responseText = await invoiceResponse.text();
-    console.log('Invoice API Response:', responseText);
 
-    let invoiceData;
-    try {
-      invoiceData = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Failed to parse invoice response:', responseText);
-      return res.status(500).send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Error</title>
-            <style>
-              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-              .error { background: #fee; padding: 20px; border-radius: 8px; border-left: 4px solid #c00; }
-            </style>
-          </head>
-          <body>
-            <div class="error">
-              <h1>Error Sending Invoice</h1>
-              <p><strong>Status:</strong> ${invoiceResponse.status}</p>
-              <p><strong>Response:</strong> ${responseText}</p>
-            </div>
-          </body>
-        </html>
-      `);
-    }
-
-    if (invoiceResponse.ok) {
+    // Check if invoice was sent successfully (204 = success with no content)
+    if (invoiceResponse.status === 204 || invoiceResponse.ok) {
       // Invoice sent successfully
       res.send(`
         <!DOCTYPE html>
@@ -187,6 +160,10 @@ app.get('/apps/pay-balance', async (req, res) => {
         </html>
       `);
     } else {
+      // Error sending invoice
+      const responseText = await invoiceResponse.text();
+      console.log('Invoice API Error Response:', responseText);
+      
       res.status(invoiceResponse.status).send(`
         <!DOCTYPE html>
         <html>
@@ -201,7 +178,7 @@ app.get('/apps/pay-balance', async (req, res) => {
             <div class="error">
               <h1>Unable to Send Payment Link</h1>
               <p>There was an error sending the payment link. Please contact support.</p>
-              <p><small>Error: ${JSON.stringify(invoiceData.errors)}</small></p>
+              <p><small>Status: ${invoiceResponse.status}</small></p>
             </div>
           </body>
         </html>
