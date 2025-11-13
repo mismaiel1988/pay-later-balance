@@ -1,9 +1,9 @@
+type = "ui_extension"
 name = "Pay Balance Extension"
-handle = "pay-balance-extension"
-type = "customer_account_ui_extension"
 
 [[extension_points]]
 target = "customer-account.order-details.block.render"
+module = "./src/index.jsx"
 
 [build]
 command = "echo 'no build needed'"
