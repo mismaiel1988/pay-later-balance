@@ -1,72 +1,217 @@
 import express from 'express';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
-
 import cors from 'cors';
+
 dotenv.config();
 const app = express();
 app.use(cors());
 
-
-// Load environment variables
 const SHOPIFY_STORE_DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
 const SHOPIFY_ADMIN_API_ACCESS_TOKEN = process.env.SHOPIFY_ADMIN_API_ACCESS_TOKEN;
 const PORT = process.env.PORT || 10000;
 
-// Helper function to extract numeric ID from GID
 function extractOrderId(gid) {
-  // Converts "gid://shopify/Order/123456" to "123456"
   const match = gid.match(/\/Order\/(\d+)/);
   return match ? match[1] : null;
 }
 
-// Test route (optional)
+function extractCustomerId(gid) {
+  const match = gid.match(/\/Customer\/(\d+)/);
+  return match ? match[1] : null;
+}
+
+async function shopifyGraphQL(query) {
+  const graphqlUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/graphql.json`;
+  const response = await fetch(graphqlUrl, {
+    method: 'POST',
+    headers: {
+      'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
+  return response.json();
+}
+
 app.get('/', (req, res) => {
-  res.send('✅ Pay Later Balance App is live and connected to Shopify API');
+  res.send('✅ Pay Later Balance App is live');
 });
 
-// Pay Balance route - Auto-send invoice using GraphQL
-app.get('/apps/pay-balance', async (req, res) => {
-  const orderGid = req.query.order_id;
-
-  if (!orderGid) {
-    return res.status(400).send('<h1>Error: Missing order ID</h1>');
-  }
-
-  const orderId = extractOrderId(orderGid);
-  
-  if (!orderId) {
-    return res.status(400).send('<h1>Error: Invalid order ID format</h1>');
-  }
-
+// API endpoint to check order payment status
+app.get('/api/order-payment-status', async (req, res) => {
   try {
-    // First, get the order details using REST API
-    const orderUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}.json`;
-    const orderResponse = await fetch(orderUrl, {
-      method: 'GET',
-      headers: {
-        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const orderData = await orderResponse.json();
-
-    if (!orderResponse.ok) {
-      return res.status(orderResponse.status).send(`<h1>Error fetching order</h1><p>${JSON.stringify(orderData.errors)}</p>`);
+    const orderGid = req.query.order_id;
+    
+    if (!orderGid) {
+      return res.status(400).json({ error: 'Order ID is required' });
     }
 
-    const order = orderData.order;
-    const remainingBalance = parseFloat(order.total_outstanding || 0);
+    const orderId = extractOrderId(orderGid);
+    
+    const query = `
+      query {
+        order(id: "gid://shopify/Order/${orderId}") {
+          id
+          name
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalOutstandingSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          financialStatus
+        }
+      }
+    `;
 
-    // Send invoice using GraphQL
-    const graphqlUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/graphql.json`;
-    const graphqlQuery = `
+    const data = await shopifyGraphQL(query);
+    
+    if (data.errors) {
+      console.error('GraphQL errors:', data.errors);
+      return res.status(500).json({ error: 'Failed to fetch order data' });
+    }
+
+    const order = data.data.order;
+    const totalOutstanding = parseFloat(order.totalOutstandingSet.shopMoney.amount);
+    
+    res.json({
+      orderId: order.id,
+      orderName: order.name,
+      totalPrice: parseFloat(order.totalPriceSet.shopMoney.amount),
+      remainingBalance: totalOutstanding,
+      hasOutstandingBalance: totalOutstanding > 0,
+      financialStatus: order.financialStatus
+    });
+  } catch (error) {
+    console.error('Error fetching order payment status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Check if customer has any unpaid orders
+app.get('/api/customer-unpaid-orders', async (req, res) => {
+  try {
+    const customerGid = req.query.customer_id;
+    
+    if (!customerGid) {
+      return res.json({ hasUnpaidOrders: false });
+    }
+
+    const customerId = extractCustomerId(customerGid);
+    
+    const query = `
+      query {
+        customer(id: "gid://shopify/Customer/${customerId}") {
+          orders(first: 50) {
+            edges {
+              node {
+                id
+                totalOutstandingSet {
+                  shopMoney {
+                    amount
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const data = await shopifyGraphQL(query);
+    
+    const hasUnpaidOrders = data.data?.customer?.orders?.edges?.some(
+      edge => parseFloat(edge.node.totalOutstandingSet.shopMoney.amount) > 0
+    ) || false;
+
+    res.json({ hasUnpaidOrders });
+  } catch (error) {
+    console.error('Error checking unpaid orders:', error);
+    res.json({ hasUnpaidOrders: false });
+  }
+});
+
+// Main payment page route
+app.get('/apps/pay-balance', async (req, res) => {
+  try {
+    const orderGid = req.query.order_id;
+    
+    if (!orderGid) {
+      return res.status(400).send('Order ID is required');
+    }
+
+    const orderId = extractOrderId(orderGid);
+    
+    const query = `
+      query {
+        order(id: "gid://shopify/Order/${orderId}") {
+          id
+          name
+          email
+          totalOutstandingSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    `;
+
+    const data = await shopifyGraphQL(query);
+    
+    if (data.errors) {
+      console.error('GraphQL errors:', data.errors);
+      return res.status(500).send('Error fetching order details');
+    }
+
+    const order = data.data.order;
+    const outstandingAmount = parseFloat(order.totalOutstandingSet.shopMoney.amount);
+
+    if (outstandingAmount <= 0) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>No Payment Required</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              max-width: 600px;
+              margin: 50px auto;
+              padding: 20px;
+              text-align: center;
+            }
+            .message {
+              background: #f0f0f0;
+              padding: 30px;
+              border-radius: 8px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="message">
+            <h1>✓ Order Paid</h1>
+            <p>Order ${order.name} has been fully paid.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    const createInvoiceMutation = `
       mutation {
-        orderInvoiceSend(id: "${orderGid}") {
-          order {
+        draftOrderInvoiceSend(id: "gid://shopify/DraftOrder/${orderId}") {
+          draftOrder {
             id
-            name
+            invoiceUrl
           }
           userErrors {
             field
@@ -76,179 +221,60 @@ app.get('/apps/pay-balance', async (req, res) => {
       }
     `;
 
-    const invoiceResponse = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: graphqlQuery })
-    });
-
-    const invoiceData = await invoiceResponse.json();
-    console.log('Invoice GraphQL Response:', JSON.stringify(invoiceData));
-
-    // Check for errors
-    if (invoiceData.data?.orderInvoiceSend?.userErrors?.length > 0) {
-      const errors = invoiceData.data.orderInvoiceSend.userErrors;
-      console.error('Invoice errors:', errors);
+    try {
+      const invoiceData = await shopifyGraphQL(createInvoiceMutation);
       
-      return res.status(400).send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Error Sending Invoice</title>
-            <style>
-              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-              .error { background: #fee; padding: 20px; border-radius: 8px; border-left: 4px solid #c00; }
-            </style>
-          </head>
-          <body>
-            <div class="error">
-              <h1>Unable to Send Payment Link</h1>
-              <p>${errors.map(e => e.message).join(', ')}</p>
-            </div>
-          </body>
-        </html>
-      `);
+      if (invoiceData.data?.draftOrderInvoiceSend?.userErrors?.length > 0) {
+        console.error('Invoice errors:', invoiceData.data.draftOrderInvoiceSend.userErrors);
+      }
+    } catch (invoiceError) {
+      console.error('Error sending invoice:', invoiceError);
     }
 
-    // Invoice sent successfully
     res.send(`
       <!DOCTYPE html>
       <html>
-        <head>
-          <title>Payment Link Sent</title>
-          <style>
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-              max-width: 600px; 
-              margin: 50px auto; 
-              padding: 20px; 
-              text-align: center;
-              background: #f9fafb;
-            }
-            .success { 
-              background: white;
-              padding: 40px; 
-              border-radius: 12px; 
-              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-              margin: 20px 0; 
-            }
-            .checkmark {
-              font-size: 64px;
-              color: #10b981;
-              margin-bottom: 20px;
-            }
-            h1 {
-              color: #111827;
-              margin-bottom: 10px;
-            }
-            .email {
-              font-size: 18px;
-              font-weight: 600;
-              color: #2563eb;
-              margin: 20px 0;
-            }
-            .amount { 
-              font-size: 32px; 
-              font-weight: bold; 
-              color: #10b981; 
-              margin: 20px 0; 
-            }
-            .info {
-              color: #6b7280;
-              line-height: 1.6;
-            }
-            .payment-methods {
-              margin-top: 30px;
-              padding-top: 30px;
-              border-top: 1px solid #e5e7eb;
-            }
-            .payment-methods p {
-              color: #6b7280;
-              font-size: 14px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="success">
-            <div class="checkmark">✓</div>
-            <h1>Payment Link Sent!</h1>
-            <p class="info">We've sent a secure payment link to:</p>
-            <p class="email">${order.email}</p>
-            <p class="amount">$${remainingBalance.toFixed(2)}</p>
-            <p class="info">
-              Please check your email inbox (and spam folder) for the payment link.<br>
-              The email should arrive within a few moments.
-            </p>
-            <div class="payment-methods">
-              <p><strong>Available payment methods:</strong><br>
-              Apple Pay • Google Pay • Credit/Debit Card</p>
-            </div>
-            <p style="margin-top: 30px; color: #9ca3af; font-size: 12px;">Order ${order.name}</p>
-          </div>
-        </body>
+      <head>
+        <title>Payment Invoice Sent</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+          }
+          .message {
+            background: #f8f9fa;
+            padding: 40px;
+            border-radius: 8px;
+          }
+          .amount {
+            font-size: 32px;
+            font-weight: bold;
+            color: #27ae60;
+            margin: 20px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="message">
+          <h1>📧 Payment Invoice Sent</h1>
+          <p class="amount">$${outstandingAmount.toFixed(2)}</p>
+          <p>A payment invoice has been sent to <strong>${order.email}</strong></p>
+          <p>Please check your email for payment instructions.</p>
+        </div>
+      </body>
       </html>
     `);
 
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).send(`<h1>Server Error</h1><p>${error.message}</p>`);
-  }
-});
-
-// JSON API endpoint for extension to check payment status
-app.get('/api/order-payment-status', async (req, res) => {
-  const orderGid = req.query.order_id;
-
-  if (!orderGid) {
-    return res.status(400).json({ error: 'Missing order ID' });
-  }
-
-  const orderId = extractOrderId(orderGid);
-  
-  if (!orderId) {
-    return res.status(400).json({ error: 'Invalid order ID format' });
-  }
-
-  try {
-    const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/orders/${orderId}.json`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_ACCESS_TOKEN,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      const order = data.order;
-      const remainingBalance = parseFloat(order.total_outstanding || 0);
-      
-      // Return JSON for the extension
-      res.json({
-        orderId: order.id,
-        orderName: order.name,
-        totalPrice: parseFloat(order.total_price),
-        remainingBalance: remainingBalance,
-        hasOutstandingBalance: remainingBalance > 0,
-        financialStatus: order.financial_status
-      });
-    } else {
-      res.status(response.status).json({ error: 'Failed to fetch order', details: data.errors });
-    }
-
-  } catch (error) {
-    console.error('Error fetching order:', error);
-    res.status(500).json({ error: 'Server error', message: error.message });
+    console.error('Error processing payment request:', error);
+    res.status(500).send('An error occurred');
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Pay Balance App running on port ${PORT}`);
-  console.log(`🌐 Store: ${SHOPIFY_STORE_DOMAIN}`);
+  console.log(`Server running on port ${PORT}`);
 });
 
