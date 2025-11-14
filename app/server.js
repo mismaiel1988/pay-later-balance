@@ -66,7 +66,6 @@ app.get('/api/order-payment-status', async (req, res) => {
               currencyCode
             }
           }
-          financialStatus
         }
       }
     `;
@@ -86,8 +85,7 @@ app.get('/api/order-payment-status', async (req, res) => {
       orderName: order.name,
       totalPrice: parseFloat(order.totalPriceSet.shopMoney.amount),
       remainingBalance: totalOutstanding,
-      hasOutstandingBalance: totalOutstanding > 0,
-      financialStatus: order.financialStatus
+      hasOutstandingBalance: totalOutstanding > 0
     });
   } catch (error) {
     console.error('Error fetching order payment status:', error);
